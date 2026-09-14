@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>입술 꾸욱</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Pretendard', sans-serif, Arial;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .main-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        /* 흰 상자 안에 들어간 제목 스타일 */
+        .title-box {
+            background-color: #ffffff;
+            padding: 12px 28px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            font-size: 22px;
+        }
+        .app-container {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            gap: 20px;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 220px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #555;
+        }
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        /* 흰색 이미지 선택 버튼 */
+        .btn-upload {
+            padding: 10px 16px;
+            background-color: #ffffff;
+            color: #444;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .btn-upload:hover {
+            background-color: #f8f8f8;
+            border-color: #ccc;
+        }
+        .btn-action {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            background-color: #e0e0e0;
+            color: #333;
+            transition: background 0.2s;
+            width: 100%;
+        }
+        .btn-action:hover {
+            background-color: #d0d0d0;
+        }
+        .btn-download {
+            background-color: #e91e63;
+            color: white;
+        }
+        .btn-download:hover {
+            background-color: #c2185b;
+        }
+        #canvas-container {
+            width: 800px;
+            height: 500px;
+            border: 2px dashed #ccc;
+            background-color: #eee;
+            background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%), 
+                              linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #e0e0e0 75%), 
+                              linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+            position: relative;
+            cursor: crosshair;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-wrapper">
+        <!-- 흰 상자 안에 들어간 제목 -->
+        <div class="title-box">
+            <h1>💋 입술 꾸욱</h1>
+        </div>
+
+        <div class="app-container">
+            <!-- 왼쪽 메뉴 영역 -->
+            <div class="controls">
+                <div class="control-group">
+                    <label for="bg-upload" class="btn-upload">🖼️ 이미지 선택</label>
+                    <input type="file" id="bg-upload" accept="image/*">
+                </div>
+
+                <div class="control-group">
+                    <div class="slider-header">
+                        <label for="stamp-size">도장 크기</label>
+                        <span id="size-val">80px</span>
+                    </div>
+                    <input type="range" id="stamp-size" min="20" max="300" value="80">
+                </div>
+
+                <button id="btn-undo" class="btn-action">↩️ 되돌리기</button>
+                <button id="btn-clear" class="btn-action">🗑️ 전체 초기화</button>
+                <button id="btn-download" class="btn-action btn-download">💾 이미지 저장</button>
+            </div>
+
+            <!-- 오른쪽 캔버스 영역 -->
+            <div id="canvas-container">
+                <canvas id="main-canvas" width="800" height="500"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('main-canvas');
+        const ctx = canvas.getContext('2d');
+
+        const bgUpload = document.getElementById('bg-upload');
+        const stampSizeSlider = document.getElementById('stamp-size');
+        const sizeVal = document.getElementById('size-val');
+        const btnUndo = document.getElementById('btn-undo');
+        const btnClear = document.getElementById('btn-clear');
+        const btnDownload = document.getElementById('btn-download');
+
+        let bgImage = null;
+        let stampsHistory = []; 
+
+        const bgCanvas = document.createElement('canvas');
+        const bgCtx = bgCanvas.getContext('2d', { willReadFrequently: true });
+
+        const stampSrcs = [
+            'https://i.imgur.com/6bEUUuE.png',
+            'https://i.imgur.com/8knAz29.png'
+        ];
+
+        const stampImages = [];
+        let loadedStampsCount = 0;
+
+        stampSrcs.forEach((src) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                loadedStampsCount++;
+                if (bgImage) render();
+            };
+            img.onerror = () => {
+                img.crossOrigin = null;
+                img.src = src; 
+                loadedStampsCount++;
+            };
+            img.src = src;
+            stampImages.push(img);
+        });
+
+        drawEmptyState();
+
+        bgUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    bgImage = new Image();
+                    bgImage.onload = () => {
+                        bgCanvas.width = bgImage.width;
+                        bgCanvas.height = bgImage.height;
+                        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+                        bgCtx.drawImage(bgImage, 0, 0);
+
+                        stampsHistory = [];
+                        render();
+                    };
+                    bgImage.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        stampSizeSlider.addEventListener('input', (e) => {
+            sizeVal.textContent = `${e.target.value}px`;
+        });
+
+        function isTransparentPixel(clickX, clickY) {
+            if (!bgImage) return true;
+
+            const hRatio = canvas.width / bgImage.width;
+            const vRatio = canvas.height / bgImage.height;
+            const ratio = Math.min(hRatio, vRatio);
+            
+            const centerShift_x = (canvas.width - bgImage.width * ratio) / 2;
+            const centerShift_y = (canvas.height - bgImage.height * ratio) / 2;
+
+            const bgWidthOnCanvas = bgImage.width * ratio;
+            const bgHeightOnCanvas = bgImage.height * ratio;
+
+            if (clickX < centerShift_x || clickX > centerShift_x + bgWidthOnCanvas ||
+                clickY < centerShift_y || clickY > centerShift_y + bgHeightOnCanvas) {
+                return true;
+            }
+
+            const origX = Math.floor((clickX - centerShift_x) / ratio);
+            const origY = Math.floor((clickY - centerShift_y) / ratio);
+
+            try {
+                const pixel = bgCtx.getImageData(origX, origY, 1, 1).data;
+                return pixel[3] === 0;
+            } catch(err) {
+                return false;
+            }
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (!bgImage) {
+                alert("먼저 이미지를 업로드해 주세요!");
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            if (isTransparentPixel(clickX, clickY)) {
+                return;
+            }
+
+            const currentSize = parseInt(stampSizeSlider.value);
+            const stampIndex = stampsHistory.length % stampImages.length;
+
+            stampsHistory.push({
+                x: clickX,
+                y: clickY,
+                size: currentSize,
+                stampIdx: stampIndex
+            });
+
+            render();
+        });
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!bgImage) {
+                drawEmptyState();
+                return;
+            }
+
+            const hRatio = canvas.width / bgImage.width;
+            const vRatio = canvas.height / bgImage.height;
+            const ratio = Math.min(hRatio, vRatio);
+            
+            const centerShift_x = (canvas.width - bgImage.width * ratio) / 2;
+            const centerShift_y = (canvas.height - bgImage.height * ratio) / 2;
+            const drawWidth = bgImage.width * ratio;
+            const drawHeight = bgImage.height * ratio;
+
+            ctx.drawImage(bgImage, 0, 0, bgImage.width, bgImage.height,
+                          centerShift_x, centerShift_y, drawWidth, drawHeight);
+
+            if (stampsHistory.length === 0) return;
+
+            const stampCanvas = document.createElement('canvas');
+            stampCanvas.width = canvas.width;
+            stampCanvas.height = canvas.height;
+            const stampCtx = stampCanvas.getContext('2d');
+
+            stampsHistory.forEach(stamp => {
+                const img = stampImages[stamp.stampIdx];
+                const size = stamp.size;
+                
+                let aspect = (img.complete && img.naturalWidth !== 0) ? (img.width / img.height) : 1.3;
+                let w = size;
+                let h = size / aspect;
+
+                stampCtx.save();
+                stampCtx.translate(stamp.x, stamp.y);
+                if (img.complete && img.naturalWidth !== 0) {
+                    stampCtx.drawImage(img, -w / 2, -h / 2, w, h);
+                } else {
+                    stampCtx.fillStyle = stamp.stampIdx === 0 ? "#e91e63" : "#ff4081";
+                    stampCtx.beginPath();
+                    stampCtx.ellipse(0, 0, w / 2, h / 3, 0, 0, Math.PI * 2);
+                    stampCtx.fill();
+                }
+                stampCtx.restore();
+            });
+
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = canvas.width;
+            maskCanvas.height = canvas.height;
+            const maskCtx = maskCanvas.getContext('2d');
+
+            maskCtx.drawImage(bgImage, 0, 0, bgImage.width, bgImage.height,
+                              centerShift_x, centerShift_y, drawWidth, drawHeight);
+            
+            maskCtx.globalCompositeOperation = 'source-in';
+            maskCtx.drawImage(stampCanvas, 0, 0);
+
+            ctx.drawImage(maskCanvas, 0, 0);
+        }
+
+        function drawEmptyState() {
+            ctx.fillStyle = "#fafafa";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#aaa";
+            ctx.font = "18px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("이미지를 업로드해 주세요 (고정 크기: 800 x 500)", canvas.width / 2, canvas.height / 2);
+        }
+
+        btnUndo.addEventListener('click', () => {
+            if (stampsHistory.length > 0) {
+                stampsHistory.pop();
+                render();
+            }
+        });
+
+        btnClear.addEventListener('click', () => {
+            stampsHistory = [];
+            render();
+        });
+
+        // 원본 해상도(크기) 그대로 이미지 내보내기
+        btnDownload.addEventListener('click', () => {
+            if (!bgImage) {
+                alert("저장할 이미지가 없습니다.");
+                return;
+            }
+            try {
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = bgImage.width;
+                exportCanvas.height = bgImage.height;
+                const exportCtx = exportCanvas.getContext('2d');
+
+                exportCtx.drawImage(bgImage, 0, 0);
+
+                if (stampsHistory.length > 0) {
+                    const hRatio = canvas.width / bgImage.width;
+                    const vRatio = canvas.height / bgImage.height;
+                    const ratio = Math.min(hRatio, vRatio);
+
+                    const centerShift_x = (canvas.width - bgImage.width * ratio) / 2;
+                    const centerShift_y = (canvas.height - bgImage.height * ratio) / 2;
+
+                    const stampExportCanvas = document.createElement('canvas');
+                    stampExportCanvas.width = bgImage.width;
+                    stampExportCanvas.height = bgImage.height;
+                    const stampExportCtx = stampExportCanvas.getContext('2d');
+
+                    stampsHistory.forEach(stamp => {
+                        const img = stampImages[stamp.stampIdx];
+                        
+                        const origX = (stamp.x - centerShift_x) / ratio;
+                        const origY = (stamp.y - centerShift_y) / ratio;
+                        const origSize = stamp.size / ratio;
+
+                        let aspect = (img.complete && img.naturalWidth !== 0) ? (img.width / img.height) : 1.3;
+                        let w = origSize;
+                        let h = origSize / aspect;
+
+                        stampExportCtx.save();
+                        stampExportCtx.translate(origX, origY);
+                        if (img.complete && img.naturalWidth !== 0) {
+                            stampExportCtx.drawImage(img, -w / 2, -h / 2, w, h);
+                        } else {
+                            stampExportCtx.fillStyle = stamp.stampIdx === 0 ? "#e91e63" : "#ff4081";
+                            stampExportCtx.beginPath();
+                            stampExportCtx.ellipse(0, 0, w / 2, h / 3, 0, 0, Math.PI * 2);
+                            stampExportCtx.fill();
+                        }
+                        stampExportCtx.restore();
+                    });
+
+                    const maskExportCanvas = document.createElement('canvas');
+                    maskExportCanvas.width = bgImage.width;
+                    maskExportCanvas.height = bgImage.height;
+                    const maskExportCtx = maskExportCanvas.getContext('2d');
+
+                    maskExportCtx.drawImage(bgImage, 0, 0);
+                    maskExportCtx.globalCompositeOperation = 'source-in';
+                    maskExportCtx.drawImage(stampExportCanvas, 0, 0);
+
+                    exportCtx.drawImage(maskExportCanvas, 0, 0);
+                }
+
+                const link = document.createElement('a');
+                link.download = 'stamped-image.png';
+                link.href = exportCanvas.toDataURL('image/png');
+                link.click();
+            } catch (e) {
+                console.error("이미지 저장 실패:", e);
+                alert("이미지를 저장하는 중에 문제가 발생했습니다.");
+            }
+        });
+    </script>
+</body>
+</html>
